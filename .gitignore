@@ -1,6 +1,6 @@
-venv/
+.venv/
+.env
 __pycache__/
 *.pyc
-
-static/uploads/
-.env
+.DS_Store
+app/static/uploads/

@@ -18,6 +18,12 @@ def login_required(f):
         return f(*args, **kwargs)
     return wrapper
 
+@routes.route("/")
+def home():
+    if "user" in session:
+        return redirect("/index")
+    return redirect("/login")
+
 # Route for the Sign up page. Redirects user to login after signing up
 @routes.route("/signup", methods=["GET", "POST"])
 def signup():

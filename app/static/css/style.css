@@ -1,0 +1,311 @@
+/* General body style */
+body {
+    margin: 0;
+    padding: 0;
+    background-color: #a8c3a1; /* light forest green */
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: #333;
+}
+
+/* Navbar at the top */
+.navbar {
+    background-color: #6c6666; /* dark gray */
+    height: 80px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+/* Logo */
+.logo {
+    height: 100px;
+    width: auto;
+}
+
+/* Main content */
+main {
+    text-align: center;
+    margin-top: 50px;
+}
+
+h1 {
+    font-size: 2rem;
+}
+
+p {
+    color: #444;
+}
+
+/* Upload section styling */
+.upload-section {
+    text-align: center;
+    background-color: #e8f5e9; /* very light green background for contrast */
+    margin: 50px auto;
+    padding: 40px;
+    border-radius: 12px;
+    width: 40%;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.upload-section h2 {
+    color: #1b5e20; /* dark green text */
+    font-size: 1.8rem;
+    margin-bottom: 20px;
+}
+
+.upload-section input[type="file"] {
+    margin-bottom: 20px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.upload-section button {
+    background-color: #2f2f2f; /* same as navbar */
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    font-size: 1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.upload-section button:hover {
+    background-color: #444;
+}
+
+/* --- Past Predictions Section --- */
+.history-section {
+    margin: 50px auto;
+    width: 60%;
+    padding: 20px;
+    background-color: #e8f5e9; /* same light green as upload section */
+    border-radius: 12px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+
+.history-section h2 {
+    color: #1b5e20; /* dark green text */
+    font-size: 1.8rem;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.history-container {
+    display: flex;
+    gap: 15px;
+    overflow-x: auto;
+    padding-bottom: 10px;
+}
+
+.history-card {
+    min-width: 150px;
+    background-color: #f0fff4; /* slightly lighter */
+    border-radius: 10px;
+    text-align: center;
+    padding: 10px;
+    flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.history-image {
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 6px;
+    margin-bottom: 8px;
+}
+
+.history-card p {
+    margin: 0;
+    font-weight: bold;
+    color: #1b5e20;
+}
+
+/*login form styles*/
+.background-image {
+    background-image: url("/static/images/background-image.jpg"); 
+    background-size: cover;
+    background-position: center;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1; 
+}
+
+/* transparent affect for contianer*/
+.glass-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+
+.login-box {
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 15px;
+    padding: 40px;
+    width: 350px;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+    text-align: center;
+    color: white;
+}
+
+
+.login-box h2 {
+    margin-bottom: 20px;
+}
+
+.login-box input {
+    width: 100%;
+    padding: 10px;
+    margin: 10px 0;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+}
+
+.login-box button {
+    background-color: #2f2f2f;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    width: 100%;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.login-box button:hover {
+    background-color: #444;
+}
+
+.signup-text {
+    margin-top: 10px;
+}
+
+.signup-text a {
+    color: #c8e6c9;
+    text-decoration: none;
+}
+
+.result-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    min-height: 100vh;
+    background: #a8c3a1; /* subtle light background */
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    padding: 20px;
+}
+
+/* Back button */
+.back-button {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    text-decoration: none;
+    color: #fff;
+    background-color: #4CAF50;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: bold;
+    transition: background-color 0.3s ease;
+}
+
+.back-button:hover {
+    background-color: #45a049;
+}
+
+/* Container for the result */
+.result-card {
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    border-radius: 12px;
+    padding: 30px;
+    max-width: 500px;
+    width: 90%;
+    text-align: center;
+    margin-top: 60px;
+}
+
+/* Title */
+.result-title {
+    font-size: 2rem;
+    margin-bottom: 20px;
+    color: #333;
+}
+
+/* Disease & confidence */
+.result-disease, .result-confidence {
+    font-size: 1.1rem;
+    margin: 10px 0;
+    color: #555;
+}
+
+/* Top 3 predictions */
+.top3-title {
+    margin-top: 20px;
+    font-size: 1.3rem;
+    color: #333;
+}
+
+.top3-list {
+    list-style-type: none;
+    padding: 0;
+    margin-top: 10px;
+}
+
+.top3-item {
+    background: #e9ecef;
+    margin: 6px 0;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 1rem;
+    color: #333;
+}
+
+/* Uploaded image */
+.result-image {
+    margin-top: 20px;
+    width: 100%;
+    max-width: 300px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.history-section {
+    background-color: #e2f4e3;
+    padding: 20px;
+    border-radius: 12px;
+    margin-top: 20px;
+}
+
+.history-container {
+    display: flex;
+    overflow-x: auto;
+    gap: 15px;
+    padding: 10px 0;
+}
+
+.history-card {
+    min-width: 150px;
+    background: #ffffff;
+    padding: 10px;
+    border-radius: 8px;
+    text-align: center;
+    box-shadow: 0px 2px 5px rgba(0,0,0,0.1);
+}
+
+.history-image {
+    max-width: 100%;
+    border-radius: 5px;
+}

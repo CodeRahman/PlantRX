@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plant Disease Detector</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header class="navbar">
+        <img src="{{ url_for('static', filename='images/PlantRX_Logo_NoBG.png') }}" alt="Logo" class="logo">
+    </header>
+
+    <main>
+        <h1>Welcome to PlantRx!</h1>
+        <p>Analyze plant images with our AI-powered detection system.</p>
+
+        <!-- section for the uploads -->
+        <section class="upload-section">
+            <h2>Upload your plant for diagnosis</h2>
+            <form action="{{ url_for('routes.predict_route') }}" method="POST" enctype="multipart/form-data">
+                <input type="file" name="image" required>
+                <button type="submit">Analyze</button>
+            </form>
+        </section>
+
+        <!-- Section for history of past prediciotns -->
+        {% if past_predictions %}
+        <section class="history-section">
+            <h2>Past Predictions</h2>
+            <div class="history-container">
+                {% for p in past_predictions %}
+                <div class="history-card">
+                    <img src="{{ url_for('static', filename='uploads/' + p.image) }}" class="history-image" alt="Plant Image">
+                    <p>{{ p.label }} - {{ (p.confidence * 100)|round(2) }}%</p>
+                    <!-- displays confidence for each previous prediction and picture -->
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+    </main>
+</body>
+</html>
+

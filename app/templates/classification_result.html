@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prediction Result</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="result-body">
+    
+    <a href="{{ url_for('routes.index') }}" class="btn back-button">&#8592; Back</a>
+
+    <div class="result-card">
+        <h1 class="result-title">Prediction Result</h1>
+
+        <p class="result-disease"><strong>Disease:</strong> {{ label }}</p>
+        <p class="result-confidence"><strong>Confidence:</strong> {{ confidence }}%</p>
+
+        <h2 class="top3-title">Top 3 Predictions:</h2>
+        <ul class="top3-list">
+            {% for item in top3 %}
+            <li class="top3-item">{{ item.label }} - {{ (item.confidence * 100)|round(2) }}%</li>
+            {% endfor %}
+        </ul>
+
+        <img src="{{ url_for('static', filename='uploads/' + image) }}" alt="Uploaded Plant" class="result-image">
+    </div>
+
+</body>
+</html>
+

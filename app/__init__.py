@@ -13,6 +13,13 @@ def create_app():
     load_dotenv(project_root / ".env")
 
     app = Flask(__name__)
+    @app.template_filter("plant_label")
+    def plant_label(value):
+        return (
+            str(value)
+            .replace("___", " — ")
+            .replace("_", " ")
+        )
 
     secret_key = os.environ.get("SECRET_KEY")
     if not secret_key:

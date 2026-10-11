@@ -264,6 +264,23 @@ main {
     overflow-wrap: anywhere;
 }
 
+
+.history-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.history-header h2 {
+    margin: 0;
+}
+
+.history-header form {
+    margin: 0;
+}
 /* =========================
    Login and signup
    ========================= */

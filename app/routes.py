@@ -16,6 +16,7 @@ from app.history import (
     save_prediction,
     get_user_predictions,
     delete_prediction,
+    delete_prediction_batch,
 )
 
 routes = Blueprint("routes", __name__)
@@ -40,6 +41,31 @@ def login_required(f):
         return f(*args, **kwargs)
 
     return wrapper
+
+@routes.route("/predictions/clear", methods=["POST"])
+@login_required
+def clear_predictions_route():
+    expected_token = session.get("csrf_token")
+    submitted_token = request.form.get("csrf_token", "")
+
+    if not expected_token or not secrets.compare_digest(
+        expected_token,
+        submitted_token,
+    ):
+        abort(400, description="Invalid clear-history request")
+
+    while True:
+        deleted_predictions = delete_prediction_batch(
+            user_id=session["user"],
+        )
+
+        if not deleted_predictions:
+            break
+
+        for prediction in deleted_predictions:
+            remove_prediction_image(prediction["image"])
+
+    return redirect("/index", code=303)
 
 def remove_prediction_image(filename):
     upload_folder = (

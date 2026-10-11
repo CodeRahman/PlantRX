@@ -57,7 +57,25 @@
         <!-- Section for history of past prediciotns -->
         {% if past_predictions %}
         <section class="history-section">
-            <h2>Past Predictions</h2>
+            <div class="history-header">
+                <h2>Past predictions</h2>
+
+                <form
+                    action="{{ url_for('routes.clear_predictions_route') }}"
+                    method="POST"
+                    onsubmit="return confirm('Permanently delete all your predictions and their images, including older predictions not displayed here?');"
+                >
+                    <input
+                        type="hidden"
+                        name="csrf_token"
+                        value="{{ csrf_token }}"
+                    >
+
+                    <button type="submit" class="delete-button">
+                        Clear my history
+                    </button>
+                </form>
+            </div>
             <div class="history-container">
                 {% for p in past_predictions %}
                 <div class="history-card">

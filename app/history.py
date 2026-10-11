@@ -44,3 +44,43 @@ def delete_prediction(user_id, prediction_id):
         return None
 
     return deleted_rows[0]
+
+
+def delete_prediction_batch(user_id, batch_size=100):
+    client = get_supabase()
+
+    response = (
+        client.table("predictions")
+        .select("id")
+        .eq("user_id", user_id)
+        .order("id")
+        .limit(batch_size)
+        .execute()
+    )
+
+    predictions = response.data or []
+
+    if not predictions:
+        return []
+
+    prediction_ids = [
+        prediction["id"]
+        for prediction in predictions
+    ]
+
+    deleted_response = (
+        client.table("predictions")
+        .delete(returning="representation")
+        .eq("user_id", user_id)
+        .in_("id", prediction_ids)
+        .execute()
+    )
+
+    deleted_predictions = deleted_response.data or []
+
+    if not deleted_predictions:
+        raise RuntimeError(
+            "Predictions were found but none could be deleted"
+        )
+
+    return deleted_predictions

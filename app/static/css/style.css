@@ -410,3 +410,20 @@ main {
         transition: none;
     }
 }
+
+.delete-prediction-form {
+    margin-top: 1rem;
+}
+
+.delete-button {
+    width: 100%;
+    background: transparent;
+    color: var(--color-error);
+    border-color: var(--color-border);
+}
+
+.delete-button:hover {
+    background: rgba(255, 180, 171, 0.08);
+    color: var(--color-error);
+    border-color: var(--color-error);
+}

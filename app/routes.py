@@ -12,7 +12,11 @@ from uuid import uuid4
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
-from app.history import save_prediction, get_user_predictions
+from app.history import (
+    save_prediction,
+    get_user_predictions,
+    delete_prediction,
+)
 
 routes = Blueprint("routes", __name__)
 
@@ -36,6 +40,28 @@ def login_required(f):
         return f(*args, **kwargs)
 
     return wrapper
+
+def remove_prediction_image(filename):
+    upload_folder = (
+        Path(current_app.static_folder) / "uploads"
+    ).resolve()
+
+    image_path = (upload_folder / filename).resolve()
+
+    if image_path.parent != upload_folder:
+        current_app.logger.warning(
+            "Skipped prediction image outside the upload folder"
+        )
+        return
+
+    try:
+        image_path.unlink(missing_ok=True)
+    except OSError:
+        current_app.logger.exception(
+            "Could not remove a deleted prediction's image"
+        )
+
+
 @routes.route("/")
 def home():
     if "user" in session:
@@ -132,6 +158,33 @@ def index():
         csrf_token=session["csrf_token"],
     )
 
+@routes.route(
+    "/predictions/<uuid:prediction_id>/delete",
+    methods=["POST"],
+)
+@login_required
+def delete_prediction_route(prediction_id):
+    expected_token = session.get("csrf_token")
+    submitted_token = request.form.get("csrf_token", "")
+
+    if not expected_token or not secrets.compare_digest(
+        expected_token,
+        submitted_token,
+    ):
+        abort(400, description="Invalid deletion request")
+
+    deleted_prediction = delete_prediction(
+        user_id=session["user"],
+        prediction_id=str(prediction_id),
+    )
+
+    if deleted_prediction is None:
+        abort(404, description="Prediction not found")
+
+    remove_prediction_image(deleted_prediction["image"])
+
+    return redirect("/index", code=303)
+
 @routes.route("/logout", methods=["POST"])
 @login_required
 def logout():
@@ -211,3 +264,5 @@ def predict_route():
         top3=top3,
         image=filename,
     )
+
+

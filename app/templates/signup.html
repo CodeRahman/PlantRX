@@ -21,6 +21,16 @@
             {% endif %}
 
             <form action="/signup" method="post" class="login-form">
+                <label for="display-name">Your name</label>
+                <input
+                    id="display-name"
+                    type="text"
+                    name="display_name"
+                    placeholder="What should we call you?"
+                    autocomplete="nickname"
+                    maxlength="80"
+                    required
+                >
                 <input type="email" name="email" placeholder="Email" required>
                 <input type="password" name="password" placeholder="Password" required>
                 <input type="password" name="confirm_password" placeholder="Confirm Password" required>

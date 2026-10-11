@@ -444,3 +444,10 @@ main {
     color: var(--color-error);
     border-color: var(--color-error);
 }
+
+
+.login-form label {
+    text-align: left;
+    color: var(--color-text);
+    font-weight: 600;
+}

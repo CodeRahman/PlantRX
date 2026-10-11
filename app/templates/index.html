@@ -26,8 +26,11 @@
     </header>
 
     <main>
-        <h1>Welcome to PlantRx!</h1>
-        <p>Analyze plant images with our AI-powered detection system.</p>
+        {% if display_name %}
+            <h1>Welcome back, {{ display_name }}!</h1>
+        {% else %}
+            <h1>Welcome to PlantRX!</h1>
+        {% endif %}
 
         <!-- section for the uploads -->
         <section class="upload-section">

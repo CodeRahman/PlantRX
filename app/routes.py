@@ -118,6 +118,15 @@ def home():
 @routes.route("/signup", methods=["GET", "POST"])
 def signup():
     if request.method == "POST":
+        display_name = request.form.get(
+            "display_name", ""
+        ).strip()
+
+        if not display_name or len(display_name) > 80:
+            return render_template(
+                "signup.html",
+                error="Enter a name between 1 and 80 characters.",
+            ), 400
         email = request.form.get("email")
         password = request.form.get("password")
         confirm = request.form.get("confirm_password")
@@ -128,7 +137,12 @@ def signup():
         try:
             get_supabase().auth.sign_up({
                 "email": email,
-                "password": password
+                "password": password,
+                "options": {
+                    "data": {
+                        "display_name": display_name,
+                    },
+                },
             })
             return redirect("/login")
         #  error for failed signup
@@ -178,6 +192,14 @@ def login():
         session["user"] = result.user.id
         session["access_token"] = result.session.access_token
         session["expires_at"] = result.session.expires_at
+        metadata = result.user.user_metadata or {}
+        display_name = metadata.get("display_name", "")
+
+        session["display_name"] = (
+            display_name.strip()[:80]
+            if isinstance(display_name, str)
+            else ""
+        )
 
         current_app.session_interface.regenerate(session)
 
@@ -211,10 +233,11 @@ def index():
             )
 
     return render_template(
-        "index.html",
-        past_predictions=past_predictions,
-        csrf_token=session["csrf_token"],
-    )
+    "index.html",
+    past_predictions=past_predictions,
+    csrf_token=session["csrf_token"],
+    display_name=session.get("display_name", ""),
+)
 
 @routes.route(
     "/predictions/<uuid:prediction_id>/delete",

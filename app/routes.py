@@ -12,6 +12,15 @@ from uuid import uuid4
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
+from tempfile import TemporaryDirectory
+from flask import url_for, send_from_directory
+
+from app.storage import (
+    upload_prediction_image,
+    get_prediction_image_url,
+    delete_prediction_image,
+)
+
 from app.history import (
     save_prediction,
     get_user_predictions,
@@ -67,24 +76,35 @@ def clear_predictions_route():
 
     return redirect("/index", code=303)
 
-def remove_prediction_image(filename):
-    upload_folder = (
-        Path(current_app.static_folder) / "uploads"
+def remove_prediction_image(image_path):
+    # New Storage paths contain the user's folder.
+    if "/" in image_path:
+        try:
+            delete_prediction_image(image_path)
+        except Exception:
+            current_app.logger.exception(
+                "Could not remove a deleted prediction's stored image"
+            )
+        return
+
+    # Older predictions use local filenames.
+    legacy_folder = (
+        Path(current_app.instance_path) / "legacy_uploads"
     ).resolve()
 
-    image_path = (upload_folder / filename).resolve()
+    file_path = (legacy_folder / image_path).resolve()
 
-    if image_path.parent != upload_folder:
+    if file_path.parent != legacy_folder:
         current_app.logger.warning(
-            "Skipped prediction image outside the upload folder"
+            "Skipped image outside the legacy upload folder"
         )
         return
 
     try:
-        image_path.unlink(missing_ok=True)
+        file_path.unlink(missing_ok=True)
     except OSError:
         current_app.logger.exception(
-            "Could not remove a deleted prediction's image"
+            "Could not remove a deleted prediction's local image"
         )
 
 
@@ -177,6 +197,18 @@ def index():
         user_id=session["user"],
         limit=10,
     )
+    for prediction in past_predictions:
+        image_path = prediction["image"]
+
+        if "/" in image_path:
+            prediction["image_url"] = get_prediction_image_url(
+                image_path
+            )
+        else:
+            prediction["image_url"] = url_for(
+                "routes.legacy_prediction_image",
+                filename=image_path,
+            )
 
     return render_template(
         "index.html",
@@ -266,29 +298,73 @@ def predict_route():
     ):
         return "The file could not be read as a valid image.", 400
 
-    upload_folder = Path(current_app.static_folder) / "uploads"
-    upload_folder.mkdir(parents=True, exist_ok=True)
+    with TemporaryDirectory(prefix="plantrx-") as temporary_folder:
+        file_path = Path(temporary_folder) / "prediction.jpg"
 
-    filename = f"{uuid4().hex}.jpg"
-    file_path = upload_folder / filename
+        image.save(
+            file_path,
+            format="JPEG",
+            quality=95,
+        )
 
-    image.save(file_path, format="JPEG", quality=95)
+        label, confidence, top3 = predict_image(file_path)
 
-    label, confidence, top3 = predict_image(file_path)
+        image_path = upload_prediction_image(
+            user_id=session["user"],
+            image_bytes=file_path.read_bytes(),
+        )
 
-    save_prediction(
-        user_id=session["user"],
-        image=filename,
-        label=label,
-        confidence=confidence,
-    )
+        try:
+            save_prediction(
+                user_id=session["user"],
+                image=image_path,
+                label=label,
+                confidence=confidence,
+            )
+        except Exception:
+            try:
+                delete_prediction_image(image_path)
+            except Exception:
+                current_app.logger.exception(
+                    "Could not clean up image after prediction saving failed"
+                )
+            raise
+
+    image_url = get_prediction_image_url(image_path)
 
     return render_template(
         "classification_result.html",
         label=label,
         confidence=round(confidence * 100, 2),
         top3=top3,
-        image=filename,
+        image_url=image_url,
     )
 
 
+@routes.route("/prediction-images/legacy/<filename>")
+@login_required
+def legacy_prediction_image(filename):
+    response = (
+        get_supabase()
+        .table("predictions")
+        .select("id")
+        .eq("user_id", session["user"])
+        .eq("image", filename)
+        .limit(1)
+        .execute()
+    )
+
+    if not response.data:
+        abort(404)
+
+    legacy_folder = (
+        Path(current_app.instance_path) / "legacy_uploads"
+    )
+
+    response = send_from_directory(
+        str(legacy_folder),
+        filename,
+    )
+    response.headers["Cache-Control"] = "private, no-store"
+
+    return response

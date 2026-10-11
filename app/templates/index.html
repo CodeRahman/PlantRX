@@ -79,7 +79,11 @@
             <div class="history-container">
                 {% for p in past_predictions %}
                 <div class="history-card">
-                    <img src="{{ url_for('static', filename='uploads/' + p.image) }}" class="history-image" alt="Plant Image">
+                    <img
+                        src="{{ p.image_url }}"
+                        class="history-image"
+                        alt="Uploaded plant image"
+                    >
                     <p>{{ p.label | plant_label }}</p>
                     <p>Model confidence: {{ (p.confidence * 100) | round(1) }}%</p>
                     <!-- displays confidence for each previous prediction and picture -->

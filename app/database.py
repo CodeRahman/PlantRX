@@ -15,16 +15,22 @@ def get_supabase():
                 "SUPABASE_URL and SUPABASE_KEY must be configured"
             )
 
+        access_token = session.get("access_token")
+
+        headers = {}
+        if access_token:
+            headers["Authorization"] = f"Bearer {access_token}"
+
         client = create_client(
             url,
             key,
             options=ClientOptions(
+                headers=headers,
                 persist_session=False,
                 auto_refresh_token=False,
             ),
         )
 
-        access_token = session.get("access_token")
         if access_token:
             client.postgrest.auth(access_token)
 

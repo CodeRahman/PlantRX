@@ -9,6 +9,20 @@
 <body>
     <header class="navbar">
         <img src="{{ url_for('static', filename='images/PlantRX_Logo_NoBG.png') }}" alt="Logo" class="logo">
+        <form
+    action="{{ url_for('routes.logout') }}"
+    method="POST"
+    class="logout-form"
+>
+    <input
+        type="hidden"
+        name="csrf_token"
+        value="{{ csrf_token }}"
+    >
+    <button type="submit" class="logout-button">
+        Log out
+    </button>
+</form>
     </header>
 
     <main>
@@ -18,8 +32,24 @@
         <!-- section for the uploads -->
         <section class="upload-section">
             <h2>Upload your plant for diagnosis</h2>
-            <form action="{{ url_for('routes.predict_route') }}" method="POST" enctype="multipart/form-data">
-                <input type="file" name="image" required>
+            <form
+                action="{{ url_for('routes.predict_route') }}"
+                method="POST"
+                enctype="multipart/form-data"
+            >
+                <input
+                    type="hidden"
+                    name="csrf_token"
+                    value="{{ csrf_token }}"
+                >
+
+                <input
+                    type="file"
+                    name="image"
+                    accept="image/jpeg,image/png"
+                    required
+                >
+
                 <button type="submit">Analyze</button>
             </form>
         </section>

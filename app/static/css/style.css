@@ -309,3 +309,44 @@ p {
     max-width: 100%;
     border-radius: 5px;
 }
+
+.navbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 2rem;
+}
+
+.navbar .logout-form {
+    margin: 0;
+    width: auto;
+    background: transparent;
+    border: none;
+    padding: 0;
+    box-shadow: none;
+}
+
+.navbar .logout-button {
+    width: auto;
+    margin: 0;
+    padding: 0.6rem 1.2rem;
+    border: 2px solid #245c2a;
+    border-radius: 8px;
+    background: transparent;
+    color: #245c2a;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.navbar .logout-button:hover {
+    background: #245c2a;
+    color: white;
+}
+
+.navbar .logout-button:focus-visible {
+    outline: 3px solid #245c2a;
+    outline-offset: 3px;
+}

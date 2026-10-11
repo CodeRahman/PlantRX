@@ -1,8 +1,16 @@
 from flask import Blueprint, render_template, request, redirect, session
-from app.database import supabase
+from app.database import get_supabase
 from functools import wraps
 from app.ML.predictor import predict_image
 import os
+import time
+from flask import current_app
+import secrets
+from flask import abort
+from pathlib import Path
+from uuid import uuid4
+
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from app.history import save_prediction, get_user_predictions
 
@@ -13,11 +21,21 @@ routes = Blueprint("routes", __name__)
 def login_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
-        if "user" not in session:
-            return redirect("/login")
-        return f(*args, **kwargs)
-    return wrapper
+        user_id = session.get("user")
+        access_token = session.get("access_token")
+        expires_at = session.get("expires_at", 0)
 
+        if (
+            not user_id
+            or not access_token
+            or time.time() >= expires_at
+        ):
+            session.clear()
+            return redirect("/login")
+
+        return f(*args, **kwargs)
+
+    return wrapper
 @routes.route("/")
 def home():
     if "user" in session:
@@ -36,7 +54,7 @@ def signup():
             return render_template("signup.html", error="Passwords do not match")
 
         try:
-            supabase.auth.sign_up({
+            get_supabase().auth.sign_up({
                 "email": email,
                 "password": password
             })
@@ -52,21 +70,46 @@ def signup():
 @routes.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        email = request.form.get("email")
-        password = request.form.get("password")
+        email = request.form.get("email", "").strip()
+        password = request.form.get("password", "")
+
+        if not email or not password:
+            return render_template(
+                "login.html",
+                error="Enter your email and password",
+            ), 400
 
         try:
-            result = supabase.auth.sign_in_with_password({
+            result = get_supabase().auth.sign_in_with_password({
                 "email": email,
-                "password": password
+                "password": password,
             })
-            #  create session for the user
-            session["user"] = result.user.id
-            return redirect("/index")
-        #  login error message
-        except Exception as e:
-            print("LOGIN ERROR:", e)
-            return render_template("login.html", error="Invalid email or password")
+        except Exception:
+            current_app.logger.warning(
+                "Supabase sign-in did not complete"
+            )
+            return render_template(
+                "login.html",
+                error=(
+                    "Could not sign in. Check your credentials "
+                    "and email confirmation, then try again."
+                ),
+            ), 401
+
+        if not result.user or not result.session:
+            return render_template(
+                "login.html",
+                error="Could not establish a login session",
+            ), 401
+
+        session.clear()
+        session["user"] = result.user.id
+        session["access_token"] = result.session.access_token
+        session["expires_at"] = result.session.expires_at
+
+        current_app.session_interface.regenerate(session)
+
+        return redirect("/index")
 
     return render_template("login.html")
 
@@ -75,40 +118,96 @@ def login():
 @routes.route("/index")
 @login_required
 def index():
-    past_predictions = get_user_predictions(user_id=session["user"], limit=10)
-    return render_template("index.html", past_predictions=past_predictions)
+    if "csrf_token" not in session:
+        session["csrf_token"] = secrets.token_urlsafe(32)
+
+    past_predictions = get_user_predictions(
+        user_id=session["user"],
+        limit=10,
+    )
+
+    return render_template(
+        "index.html",
+        past_predictions=past_predictions,
+        csrf_token=session["csrf_token"],
+    )
+
+@routes.route("/logout", methods=["POST"])
+@login_required
+def logout():
+    expected_token = session.get("csrf_token")
+    submitted_token = request.form.get("csrf_token", "")
+
+    if not expected_token or not secrets.compare_digest(
+        expected_token,
+        submitted_token,
+    ):
+        abort(400, description="Invalid logout request")
+
+    session.clear()
+    return redirect("/login")
 
 # Route to the prediction page. requires users to be logged in
 @routes.route("/predict", methods=["POST"])
 @login_required
 def predict_route():
-    if "image" not in request.files:
-        return "No image uploaded", 400
-    # file upload logic. Gets file from the directory and make sure the file exists. Adds it to the uplaods folder.
-    file = request.files["image"]
-    upload_folder = os.path.join("app/static/uploads")
-    os.makedirs(upload_folder, exist_ok=True)
+    expected_token = session.get("csrf_token")
+    submitted_token = request.form.get("csrf_token", "")
 
-    file_path = os.path.join(upload_folder, file.filename)
-    file.save(file_path)
+    if not expected_token or not secrets.compare_digest(
+        expected_token,
+        submitted_token,
+    ):
+        abort(400, description="Invalid upload request")
 
-    # displays the label, confidence, and the top three possibilities for the image. 
+    file = request.files.get("image")
+
+    if file is None or not file.filename:
+        return "Choose an image before submitting.", 400
+
+    try:
+        with Image.open(file.stream) as uploaded_image:
+            if uploaded_image.format not in {"JPEG", "PNG"}:
+                return "Upload a JPEG or PNG image.", 400
+
+            width, height = uploaded_image.size
+            if width * height > 20_000_000:
+                return "The image must contain at most 20 million pixels.", 400
+
+            uploaded_image.load()
+
+            image = ImageOps.exif_transpose(uploaded_image)
+            image = image.convert("RGB")
+
+    except (
+        UnidentifiedImageError,
+        OSError,
+        ValueError,
+        Image.DecompressionBombError,
+    ):
+        return "The file could not be read as a valid image.", 400
+
+    upload_folder = Path(current_app.static_folder) / "uploads"
+    upload_folder.mkdir(parents=True, exist_ok=True)
+
+    filename = f"{uuid4().hex}.jpg"
+    file_path = upload_folder / filename
+
+    image.save(file_path, format="JPEG", quality=95)
+
     label, confidence, top3 = predict_image(file_path)
 
-    # saves the prediction to the database with all information.
     save_prediction(
         user_id=session["user"],
-        image=file.filename,
+        image=filename,
         label=label,
-        confidence=confidence
+        confidence=confidence,
     )
 
-    # Shows the result of the classificaiton on the classify page. 
     return render_template(
         "classification_result.html",
         label=label,
         confidence=round(confidence * 100, 2),
         top3=top3,
-        image=file.filename
+        image=filename,
     )
-

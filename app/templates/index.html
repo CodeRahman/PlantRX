@@ -9,17 +9,50 @@
 <body>
     <header class="navbar">
         <img src="{{ url_for('static', filename='images/PlantRX_Logo_NoBG.png') }}" alt="Logo" class="logo">
+        <form
+    action="{{ url_for('routes.logout') }}"
+    method="POST"
+    class="logout-form"
+>
+    <input
+        type="hidden"
+        name="csrf_token"
+        value="{{ csrf_token }}"
+    >
+    <button type="submit" class="logout-button">
+        Log out
+    </button>
+</form>
     </header>
 
     <main>
-        <h1>Welcome to PlantRx!</h1>
-        <p>Analyze plant images with our AI-powered detection system.</p>
+        {% if display_name %}
+            <h1>Welcome back, {{ display_name }}!</h1>
+        {% else %}
+            <h1>Welcome to PlantRX!</h1>
+        {% endif %}
 
         <!-- section for the uploads -->
         <section class="upload-section">
             <h2>Upload your plant for diagnosis</h2>
-            <form action="{{ url_for('routes.predict_route') }}" method="POST" enctype="multipart/form-data">
-                <input type="file" name="image" required>
+            <form
+                action="{{ url_for('routes.predict_route') }}"
+                method="POST"
+                enctype="multipart/form-data"
+            >
+                <input
+                    type="hidden"
+                    name="csrf_token"
+                    value="{{ csrf_token }}"
+                >
+
+                <input
+                    type="file"
+                    name="image"
+                    accept="image/jpeg,image/png"
+                    required
+                >
+
                 <button type="submit">Analyze</button>
             </form>
         </section>
@@ -27,13 +60,55 @@
         <!-- Section for history of past prediciotns -->
         {% if past_predictions %}
         <section class="history-section">
-            <h2>Past Predictions</h2>
+            <div class="history-header">
+                <h2>Past predictions</h2>
+
+                <form
+                    action="{{ url_for('routes.clear_predictions_route') }}"
+                    method="POST"
+                    onsubmit="return confirm('Permanently delete all your predictions and their images, including older predictions not displayed here?');"
+                >
+                    <input
+                        type="hidden"
+                        name="csrf_token"
+                        value="{{ csrf_token }}"
+                    >
+
+                    <button type="submit" class="delete-button">
+                        Clear my history
+                    </button>
+                </form>
+            </div>
             <div class="history-container">
                 {% for p in past_predictions %}
                 <div class="history-card">
-                    <img src="{{ url_for('static', filename='uploads/' + p.image) }}" class="history-image" alt="Plant Image">
-                    <p>{{ p.label }} - {{ (p.confidence * 100)|round(2) }}%</p>
+                    <img
+                        src="{{ p.image_url }}"
+                        class="history-image"
+                        alt="Uploaded plant image"
+                    >
+                    <p>{{ p.label | plant_label }}</p>
+                    <p>Model confidence: {{ (p.confidence * 100) | round(1) }}%</p>
                     <!-- displays confidence for each previous prediction and picture -->
+                     <form
+                        action="{{ url_for(
+                            'routes.delete_prediction_route',
+                            prediction_id=p.id
+                        ) }}"
+                        method="POST"
+                        class="delete-prediction-form"
+                        onsubmit="return confirm('Delete this prediction and its image?');"
+                    >
+                        <input
+                            type="hidden"
+                            name="csrf_token"
+                            value="{{ csrf_token }}"
+                        >
+
+                        <button type="submit" class="delete-button">
+                            Delete prediction
+                        </button>
+                    </form>
                 </div>
                 {% endfor %}
             </div>

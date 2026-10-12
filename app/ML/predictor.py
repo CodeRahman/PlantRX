@@ -3,14 +3,14 @@ import numpy as np
 from PIL import Image
 import json
 from pathlib import Path
-from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
+from keras.applications.mobilenet_v2 import preprocess_input
 
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_PATH = BASE_DIR / "plant_disease_mnv2.keras"
 LABELS_PATH = BASE_DIR / "labels.json"
 
 # loads the model
-model = tf.keras.models.load_model(MODEL_PATH)
+model = tf.keras.models.load_model(MODEL_PATH, compile=False)
 
 # Load labels
 with open(LABELS_PATH) as f:
@@ -24,7 +24,7 @@ def predict_image(file_path):
     x = np.array(img)[None, ...].astype("float32")
     x = preprocess_input(x)
 
-    preds = model.predict(x)[0]
+    preds = model(x, training=False).numpy()[0]
     idx = int(np.argmax(preds))
     confidence = float(preds[idx])
     label = labels[idx]

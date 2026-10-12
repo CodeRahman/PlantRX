@@ -1,10 +1,32 @@
 from flask import Blueprint, render_template, request, redirect, session
-from app.database import supabase
+from app.database import get_supabase
 from functools import wraps
 from app.ML.predictor import predict_image
 import os
+import time
+from flask import current_app
+import secrets
+from flask import abort
+from pathlib import Path
+from uuid import uuid4
 
-from app.history import save_prediction, get_user_predictions
+from PIL import Image, ImageOps, UnidentifiedImageError
+
+from tempfile import TemporaryDirectory
+from flask import url_for, send_from_directory
+
+from app.storage import (
+    upload_prediction_image,
+    get_prediction_image_url,
+    delete_prediction_image,
+)
+
+from app.history import (
+    save_prediction,
+    get_user_predictions,
+    delete_prediction,
+    delete_prediction_batch,
+)
 
 routes = Blueprint("routes", __name__)
 
@@ -13,10 +35,78 @@ routes = Blueprint("routes", __name__)
 def login_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
-        if "user" not in session:
+        user_id = session.get("user")
+        access_token = session.get("access_token")
+        expires_at = session.get("expires_at", 0)
+
+        if (
+            not user_id
+            or not access_token
+            or time.time() >= expires_at
+        ):
+            session.clear()
             return redirect("/login")
+
         return f(*args, **kwargs)
+
     return wrapper
+
+@routes.route("/predictions/clear", methods=["POST"])
+@login_required
+def clear_predictions_route():
+    expected_token = session.get("csrf_token")
+    submitted_token = request.form.get("csrf_token", "")
+
+    if not expected_token or not secrets.compare_digest(
+        expected_token,
+        submitted_token,
+    ):
+        abort(400, description="Invalid clear-history request")
+
+    while True:
+        deleted_predictions = delete_prediction_batch(
+            user_id=session["user"],
+        )
+
+        if not deleted_predictions:
+            break
+
+        for prediction in deleted_predictions:
+            remove_prediction_image(prediction["image"])
+
+    return redirect("/index", code=303)
+
+def remove_prediction_image(image_path):
+    # New Storage paths contain the user's folder.
+    if "/" in image_path:
+        try:
+            delete_prediction_image(image_path)
+        except Exception:
+            current_app.logger.exception(
+                "Could not remove a deleted prediction's stored image"
+            )
+        return
+
+    # Older predictions use local filenames.
+    legacy_folder = (
+        Path(current_app.instance_path) / "legacy_uploads"
+    ).resolve()
+
+    file_path = (legacy_folder / image_path).resolve()
+
+    if file_path.parent != legacy_folder:
+        current_app.logger.warning(
+            "Skipped image outside the legacy upload folder"
+        )
+        return
+
+    try:
+        file_path.unlink(missing_ok=True)
+    except OSError:
+        current_app.logger.exception(
+            "Could not remove a deleted prediction's local image"
+        )
+
 
 @routes.route("/")
 def home():
@@ -28,6 +118,15 @@ def home():
 @routes.route("/signup", methods=["GET", "POST"])
 def signup():
     if request.method == "POST":
+        display_name = request.form.get(
+            "display_name", ""
+        ).strip()
+
+        if not display_name or len(display_name) > 80:
+            return render_template(
+                "signup.html",
+                error="Enter a name between 1 and 80 characters.",
+            ), 400
         email = request.form.get("email")
         password = request.form.get("password")
         confirm = request.form.get("confirm_password")
@@ -36,9 +135,14 @@ def signup():
             return render_template("signup.html", error="Passwords do not match")
 
         try:
-            supabase.auth.sign_up({
+            get_supabase().auth.sign_up({
                 "email": email,
-                "password": password
+                "password": password,
+                "options": {
+                    "data": {
+                        "display_name": display_name,
+                    },
+                },
             })
             return redirect("/login")
         #  error for failed signup
@@ -52,21 +156,54 @@ def signup():
 @routes.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        email = request.form.get("email")
-        password = request.form.get("password")
+        email = request.form.get("email", "").strip()
+        password = request.form.get("password", "")
+
+        if not email or not password:
+            return render_template(
+                "login.html",
+                error="Enter your email and password",
+            ), 400
 
         try:
-            result = supabase.auth.sign_in_with_password({
+            result = get_supabase().auth.sign_in_with_password({
                 "email": email,
-                "password": password
+                "password": password,
             })
-            #  create session for the user
-            session["user"] = result.user.id
-            return redirect("/index")
-        #  login error message
-        except Exception as e:
-            print("LOGIN ERROR:", e)
-            return render_template("login.html", error="Invalid email or password")
+        except Exception:
+            current_app.logger.warning(
+                "Supabase sign-in did not complete"
+            )
+            return render_template(
+                "login.html",
+                error=(
+                    "Could not sign in. Check your credentials "
+                    "and email confirmation, then try again."
+                ),
+            ), 401
+
+        if not result.user or not result.session:
+            return render_template(
+                "login.html",
+                error="Could not establish a login session",
+            ), 401
+
+        session.clear()
+        session["user"] = result.user.id
+        session["access_token"] = result.session.access_token
+        session["expires_at"] = result.session.expires_at
+        metadata = result.user.user_metadata or {}
+        display_name = metadata.get("display_name", "")
+
+        session["display_name"] = (
+            display_name.strip()[:80]
+            if isinstance(display_name, str)
+            else ""
+        )
+
+        current_app.session_interface.regenerate(session)
+
+        return redirect("/index")
 
     return render_template("login.html")
 
@@ -75,40 +212,200 @@ def login():
 @routes.route("/index")
 @login_required
 def index():
-    past_predictions = get_user_predictions(user_id=session["user"], limit=10)
-    return render_template("index.html", past_predictions=past_predictions)
+    if "csrf_token" not in session:
+        session["csrf_token"] = secrets.token_urlsafe(32)
+
+    past_predictions = get_user_predictions(
+        user_id=session["user"],
+        limit=10,
+    )
+    for prediction in past_predictions:
+        image_path = prediction["image"]
+
+        if "/" in image_path:
+            prediction["image_url"] = get_prediction_image_url(
+                image_path
+            )
+        else:
+            prediction["image_url"] = url_for(
+                "routes.legacy_prediction_image",
+                filename=image_path,
+            )
+
+    return render_template(
+    "index.html",
+    past_predictions=past_predictions,
+    csrf_token=session["csrf_token"],
+    display_name=session.get("display_name", ""),
+)
+
+@routes.route(
+    "/predictions/<uuid:prediction_id>/delete",
+    methods=["POST"],
+)
+@login_required
+def delete_prediction_route(prediction_id):
+    expected_token = session.get("csrf_token")
+    submitted_token = request.form.get("csrf_token", "")
+
+    if not expected_token or not secrets.compare_digest(
+        expected_token,
+        submitted_token,
+    ):
+        abort(400, description="Invalid deletion request")
+
+    deleted_prediction = delete_prediction(
+        user_id=session["user"],
+        prediction_id=str(prediction_id),
+    )
+
+    if deleted_prediction is None:
+        abort(404, description="Prediction not found")
+
+    remove_prediction_image(deleted_prediction["image"])
+
+    return redirect("/index", code=303)
+
+@routes.route("/logout", methods=["POST"])
+@login_required
+def logout():
+    expected_token = session.get("csrf_token")
+    submitted_token = request.form.get("csrf_token", "")
+
+    if not expected_token or not secrets.compare_digest(
+        expected_token,
+        submitted_token,
+    ):
+        abort(400, description="Invalid logout request")
+
+    session.clear()
+    return redirect("/login")
 
 # Route to the prediction page. requires users to be logged in
 @routes.route("/predict", methods=["POST"])
 @login_required
 def predict_route():
-    if "image" not in request.files:
-        return "No image uploaded", 400
-    # file upload logic. Gets file from the directory and make sure the file exists. Adds it to the uplaods folder.
-    file = request.files["image"]
-    upload_folder = os.path.join("app/static/uploads")
-    os.makedirs(upload_folder, exist_ok=True)
+    expected_token = session.get("csrf_token")
+    submitted_token = request.form.get("csrf_token", "")
 
-    file_path = os.path.join(upload_folder, file.filename)
-    file.save(file_path)
+    if not expected_token or not secrets.compare_digest(
+        expected_token,
+        submitted_token,
+    ):
+        abort(400, description="Invalid upload request")
 
-    # displays the label, confidence, and the top three possibilities for the image. 
-    label, confidence, top3 = predict_image(file_path)
+    file = request.files.get("image")
 
-    # saves the prediction to the database with all information.
-    save_prediction(
-        user_id=session["user"],
-        image=file.filename,
-        label=label,
-        confidence=confidence
-    )
+    if file is None or not file.filename:
+        return "Choose an image before submitting.", 400
 
-    # Shows the result of the classificaiton on the classify page. 
+    try:
+        with Image.open(file.stream) as uploaded_image:
+            if uploaded_image.format not in {"JPEG", "PNG"}:
+                return "Upload a JPEG or PNG image.", 400
+
+            width, height = uploaded_image.size
+            if width * height > 20_000_000:
+                return "The image must contain at most 20 million pixels.", 400
+
+            uploaded_image.load()
+
+            image = ImageOps.exif_transpose(uploaded_image)
+            image = image.convert("RGB")
+
+    except (
+        UnidentifiedImageError,
+        OSError,
+        ValueError,
+        Image.DecompressionBombError,
+    ):
+        return "The file could not be read as a valid image.", 400
+
+    with TemporaryDirectory(prefix="plantrx-") as temporary_folder:
+        file_path = Path(temporary_folder) / "prediction.jpg"
+
+        image.save(
+            file_path,
+            format="JPEG",
+            quality=95,
+        )
+
+        current_app.logger.warning("DIAGNOSTIC: Starting model prediction")
+        started = time.monotonic()
+
+        label, confidence, top3 = predict_image(file_path)
+
+        current_app.logger.warning(
+            "DIAGNOSTIC: Model prediction finished in %.2f seconds",
+            time.monotonic() - started,
+        )
+
+        current_app.logger.warning("DIAGNOSTIC: Starting Storage upload")
+
+        image_path = upload_prediction_image(
+            user_id=session["user"],
+            image_bytes=file_path.read_bytes(),
+        )
+
+        current_app.logger.warning("DIAGNOSTIC: Storage upload finished")
+
+        try:
+            current_app.logger.warning("DIAGNOSTIC: Saving prediction record")
+            save_prediction(
+                user_id=session["user"],
+                image=image_path,
+                label=label,
+                confidence=confidence,
+            )
+            current_app.logger.warning("DIAGNOSTIC: Prediction record saved")
+        except Exception:
+            try:
+                delete_prediction_image(image_path)
+            except Exception:
+                current_app.logger.exception(
+                    "Could not clean up image after prediction saving failed"
+                )
+            raise
+
+    current_app.logger.warning("DIAGNOSTIC: Creating image viewing link")
+
+    image_url = get_prediction_image_url(image_path)
+
+    current_app.logger.warning("DIAGNOSTIC: Image viewing link created")
+
     return render_template(
         "classification_result.html",
         label=label,
         confidence=round(confidence * 100, 2),
         top3=top3,
-        image=file.filename
+        image_url=image_url,
     )
 
+
+@routes.route("/prediction-images/legacy/<filename>")
+@login_required
+def legacy_prediction_image(filename):
+    response = (
+        get_supabase()
+        .table("predictions")
+        .select("id")
+        .eq("user_id", session["user"])
+        .eq("image", filename)
+        .limit(1)
+        .execute()
+    )
+
+    if not response.data:
+        abort(404)
+
+    legacy_folder = (
+        Path(current_app.instance_path) / "legacy_uploads"
+    )
+
+    response = send_from_directory(
+        str(legacy_folder),
+        filename,
+    )
+    response.headers["Cache-Control"] = "private, no-store"
+
+    return response

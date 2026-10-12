@@ -24,7 +24,7 @@ def predict_image(file_path):
     x = np.array(img)[None, ...].astype("float32")
     x = preprocess_input(x)
 
-    preds = model.predict(x)[0]
+    preds = model(x, training=False).numpy()[0]
     idx = int(np.argmax(preds))
     confidence = float(preds[idx])
     label = labels[idx]

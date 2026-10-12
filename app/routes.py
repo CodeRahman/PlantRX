@@ -330,20 +330,34 @@ def predict_route():
             quality=95,
         )
 
+        current_app.logger.warning("DIAGNOSTIC: Starting model prediction")
+        started = time.monotonic()
+
         label, confidence, top3 = predict_image(file_path)
+
+        current_app.logger.warning(
+            "DIAGNOSTIC: Model prediction finished in %.2f seconds",
+            time.monotonic() - started,
+        )
+
+        current_app.logger.warning("DIAGNOSTIC: Starting Storage upload")
 
         image_path = upload_prediction_image(
             user_id=session["user"],
             image_bytes=file_path.read_bytes(),
         )
 
+        current_app.logger.warning("DIAGNOSTIC: Storage upload finished")
+
         try:
+            current_app.logger.warning("DIAGNOSTIC: Saving prediction record")
             save_prediction(
                 user_id=session["user"],
                 image=image_path,
                 label=label,
                 confidence=confidence,
             )
+            current_app.logger.warning("DIAGNOSTIC: Prediction record saved")
         except Exception:
             try:
                 delete_prediction_image(image_path)
@@ -353,7 +367,11 @@ def predict_route():
                 )
             raise
 
+    current_app.logger.warning("DIAGNOSTIC: Creating image viewing link")
+
     image_url = get_prediction_image_url(image_path)
+
+    current_app.logger.warning("DIAGNOSTIC: Image viewing link created")
 
     return render_template(
         "classification_result.html",

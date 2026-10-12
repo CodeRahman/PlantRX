@@ -6,7 +6,6 @@ A Flask application that classifies plant leaf images and keeps a personal predi
 
 The upload-to-prediction flow has been tested locally, including image storage and history management. A Render deployment is available at [plantrx-pmmy.onrender.com](https://plantrx-pmmy.onrender.com), but **image analysis currently stalls on that deployment**. Login and the dashboard work; the hosted prediction flow is not a working end-to-end demo yet. Deployment troubleshooting is paused.
 
-The latest implementation is on [`maintenance/setup-cleanup`](https://github.com/CodeRahman/PlantRX/tree/maintenance/setup-cleanup). Use that branch for the setup instructions below until it is merged into `main`.
 
 ## Features
 
